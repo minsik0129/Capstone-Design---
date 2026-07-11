@@ -1,0 +1,27 @@
+# requirements.txt
+#
+# 주의: 이 저장소에는 1학기 종료 시점 기준 실제 소스 코드가 커밋되어 있지 않아,
+# import 문을 직접 확인해서 이 목록을 검증할 수 없었습니다.
+# 아래 목록은 Notion 회의록/기술 문서에서 라이브러리/모델명이 "명시적으로 언급된" 것만
+# 근거로 정리했습니다. 버전은 확인할 방법이 없어 임의로 엄격하게 고정하지 않았습니다.
+# 2학기에 실제 코드가 추가되면 이 파일을 코드의 import 문 기준으로 다시 작성해야 합니다.
+
+# --- 명시적으로 언급된 핵심 라이브러리 ---
+mediapipe          # Pose Landmarker (33 keypoints), pose_landmarker_lite.task 모델 사용
+numpy
+pandas             # CSV(exercise_angles.csv 등) 처리
+scipy              # find_peaks, Savitzky-Golay filter 기반 횟수 카운팅 실험
+ultralytics         # YOLOv8n-pose / YOLO-World 실험 (채택되지는 않았으나 실험 코드에 사용됨)
+
+# --- 매우 높은 확률로 필요하지만, Notion 문서에 라이브러리명이 직접 언급되지는 않음 ---
+# (ST-GCN/TCN/CTR-GCN 학습, epoch/파라미터 수 기록 등 딥러닝 실험이 확인되므로 필요할 것으로 추정)
+# torch
+# opencv-python      # 영상 입출력 및 오버레이 렌더링에 사실상 필수로 추정
+# matplotlib          # confusion matrix, epoch-loss graph 시각화에 사용되었을 것으로 추정
+
+# --- 참고 ---
+# Python 권장 버전: Notion에 명시적으로 기록되어 있지 않음. MediaPipe/PyTorch 최신 버전과의
+# 호환성을 고려해 3.9~3.11 범위를 우선 검토할 것을 권장.
+# GPU 필요 여부: ST-GCN/CTR-GCN 학습은 GPU 자원 부족으로 실험이 중단된 기록이 있어(0512)
+# GPU 사용을 전제로 한 것으로 보임. 추론(inference)만 하는 경우 CPU로도 가능할 가능성이 있으나
+# 실측 근거는 확인되지 않음.
