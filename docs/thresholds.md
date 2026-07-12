@@ -38,6 +38,30 @@
 
 즉 이 항목만큼은 "PDF 문서값(0.08)을 그대로 코드에 넣었더니 실측에서 오탐이 너무 많아, 코드 작성자가 threshold를 0.20으로 완화하고 오류 판정에서도 제외했다"는 **실측 기반 조정 사례**입니다. 이런 조정 근거가 있는 항목과, 그냥 서로 다른 값을 썼을 뿐 이유가 남아있지 않은 항목(`knee_angle` 등)을 구분해서 이해해야 합니다.
 
+### 0-1. 종목명 표기 자체도 세 갈래로 다르다
+
+threshold 값뿐 아니라 **벤치프레스를 가리키는 키 이름조차 코드마다 다릅니다.**
+
+| 파일 | 벤치프레스를 가리키는 내부 키 |
+|---|---|
+| `benchpress_feedback_v4.py` | (단일 종목 파일이라 키 없음. 파일/함수명 전체가 `benchpress`) |
+| `unified_feedback_v4.py` | `"benchpress"` (내부 표준), CLI에서 `bench`/`bp` 입력 시 `normalize_exercise_name()`이 `"benchpress"`로 변환 |
+| `deadlift_feedback_v2_CLEAN.py` | **`"bench"`** — `USER_VIDEO_FILES`, `EXPERT_JSON_FILES`, `EXERCISE_DELTA_THRESHOLDS`, `DOCUMENT_METRICS_ALL` 등 모든 딕셔너리 키가 `bench`이며, `normalize_exercise_name()`과 같은 변환 함수가 없어 `"benchpress"`를 넣으면 `KeyError`가 발생함 |
+
+즉 `deadlift_feedback_v2_CLEAN.py`에서 벤치프레스를 실행하려면 `EXERCISE = 'bench'`로 설정해야 하며, 이는 프로젝트 전체의 "`benchpress`로 통일" 원칙과 어긋나는 유일한 예외입니다. 2학기에 이 파일도 `benchpress`로 통일할지, 혹은 CLI 별칭 변환 함수를 추가할지 결정이 필요합니다.
+
+### 0-2. 네 번째 threshold 세트 — `realtime_compare_side.py`
+
+`deadlift_feedback_v2_CLEAN.py`가 import하는 `realtime_compare_side.py`도 자체 `THRESHOLDS` 딕셔너리를 갖고 있습니다. 다만 이 값들은 **squat/pushup용**이며(이 파일 자체가 원래 스쿼트/푸시업 실시간 데모였음 — [`system_pipeline.md`](./system_pipeline.md) 참고), `deadlift_feedback_v2_CLEAN.py`는 이 `THRESHOLDS`를 사용하지 않고 자체 `EXERCISE_DELTA_THRESHOLDS`로 덮어씁니다. 실질적으로 3대 운동 판정에는 영향을 주지 않지만, 코드베이스 안에 threshold 딕셔너리가 이미 4벌(PDF 기준값 포함) 존재한다는 것을 보여주는 사례로 기록해 둡니다.
+
+```
+realtime_compare_side.py THRESHOLDS = {
+    "knee_angle": 12.0, "hip_angle": 10.0, "ankle_angle": 8.0,
+    "elbow_angle": 12.0, "body_angle": 10.0, "spine_lean": 10.0,
+    "foot_width": 0.15, "grip_width": 0.15, "knee_align": 0.10,
+}
+```
+
 ## 1. PDF(`종목별_threshold_값.pdf`) 문서화 지표 — 발/손/어깨/정렬 계열
 
 이 표의 지표들은 PDF에 종목별 값과 근거가 명시되어 있고, `benchpress_feedback_v4.py`와 `deadlift_feedback_v2_CLEAN.py`가 (거의) 그대로 코드에 반영했습니다. `unified_feedback_v4.py`는 이 계열 중 일부만 구현합니다(위 0절 표 참고).

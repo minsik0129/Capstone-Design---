@@ -44,7 +44,12 @@
 
 ## 2. 라벨 구조
 
-0512 회의록 기준 phase 라벨링 도구(`phase_labeling.py`)가 신규 작성되었고, "start-bottom-finish" 또는 "ready-down-up" 형태의 phase 라벨이 사용되었습니다(공식 명칭은 페이지마다 약간 다르게 표기됨 — 예: phase 성능 저하 분석 문서는 `ready/down/up` 3단계를 사용). 라벨 파일명은 `squat_labels.csv`, `labels_deadlift.csv`, `benchpress_lables.csv`(원문 그대로, 오타 포함), `labels_squat.csv` 등으로 회의록에 등장하나, 종목별 파일명 규칙이 완전히 통일되어 있지는 않습니다.
+`phase_labeling.py`(`src/preprocessing/`)의 실제 코드를 확인해 정확한 라벨 스키마를 검증했습니다. "start-bottom-finish" 3단계 phase 라벨이 사용되며(0512 회의록의 "ready-down-up" 표기는 이후 문서에서 이름이 다르게 정착된 것으로 보임 — 같은 3단계 개념), 도구가 기대하는 폴더 구조와 산출물은 다음과 같습니다.
+
+- **입력 폴더 구조**: `측면_수정본/{benchpress,squat,deadlift}/*.{mp4,avi,mov,mkv,wmv}`
+- **출력 CSV**: `phase_labels.csv`, 컬럼은 `type`, `name`, `count`, `L1`, `L2`, `L3`, ... — 3개씩 한 세트로 `L(3k+1)`=k+1번째 반복의 Start 프레임, `L(3k+2)`=Bottom 프레임, `L(3k+3)`=Finish 프레임(0-based)
+
+과거 회의록에 등장한 `squat_labels.csv`, `labels_deadlift.csv`, `benchpress_lables.csv`(오타 포함), `labels_squat.csv` 등의 파일명은 `phase_labeling.py`가 실제로 생성하는 `phase_labels.csv`와 다릅니다 — 종목별로 별도 CSV를 만들던 이전 방식에서, 하나의 CSV에 `type` 컬럼으로 종목을 구분하는 현재 방식으로 정리된 것으로 추정됩니다(정확한 이력은 확인되지 않음).
 
 0611 회의록에는 "데이터 재라벨링(상/중/하 분류·편집·start-bottom-finish 라벨)"이라는 기록이 있어, 라벨 품질 재검토 작업이 1학기 말에 진행되었습니다.
 

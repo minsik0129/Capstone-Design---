@@ -107,4 +107,15 @@
 
 `unified_feedback_v4.py`는 데드리프트에서 손목·손끝·팔꿈치 landmark(13~22번)를 `STRUCTURAL_OCCLUSION`으로 지정해 `elbow_angle`, `elbow_angle_avg`, `wrist_elbow_x_diff`, `bar_proxy_conf`를 `ADVISORY`(참고용, 오류 판정에서 제외)로 강등합니다. 반면 `deadlift_feedback_v2_CLEAN.py`의 `SIDE_RELIABLE_METRICS['deadlift']`는 `elbow_angle_avg`를 핵심 판정 지표 목록에 포함시킵니다. 즉 **팔꿈치 각도를 데드리프트 오류 판정에 쓸지 말지가 두 파일에서 다르게 결정**되어 있습니다. `unified_feedback_v4.py` 쪽의 판단 근거(바벨에 가려져 신뢰도가 낮다는 것)가 코드 주석으로 명확히 남아 있어 더 설득력이 있으나, 어느 쪽이 최종 채택되어야 하는지는 팀 확인이 필요합니다.
 
+### 5-4. landmark smoothing 알고리즘이 두 가지
+
+- `unified_feedback_v4.py`, `benchpress_feedback_v4.py`: `MetricsBuffer`/`LandmarkSmoother` — 지표 값 자체를 최근 N프레임 평균하거나(`MetricsBuffer`), landmark 좌표를 EMA(지수이동평균, alpha 0.35/0.30)로 스무딩
+- `feedback_overlay.py`(`deadlift_feedback_v2_CLEAN.py`가 사용): `OneEuroFilter`(Casiez et al. 2012) — 속도에 따라 스무딩 강도를 동적으로 조절하는 필터. 정지 시 강하게, 동작 시 약하게 스무딩
+
+두 방식은 서로 다른 수학적 원리이며 결과 특성(지연, 반응성)도 다릅니다. 어느 하나로 통일할지는 실측 비교가 필요합니다.
+
+### 5-5. `realtime_compare_side.py`의 정규화 기준도 다름
+
+이 파일의 `compute_metrics()`는 `foot_width`, `grip_width`, `knee_align`을 `torso_length`가 아니라 **어깨 너비(`shoulder_w`)**로 정규화합니다. 다른 모든 파일이 몸통 길이(어깨중심-엉덩이중심 거리) 기준인 것과 다른 네 번째 정규화 방식입니다. 다만 이 파일 자체는 squat/pushup용으로, `deadlift_feedback_v2_CLEAN.py`가 이 함수를 직접 쓰지는 않습니다(참고용으로만 기록).
+
 관련 문서: [`thresholds.md`](./thresholds.md), [`pose_landmarks_and_csv.md`](./pose_landmarks_and_csv.md), [`limitations.md`](./limitations.md)
