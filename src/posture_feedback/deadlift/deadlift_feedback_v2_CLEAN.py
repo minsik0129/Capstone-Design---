@@ -16,21 +16,26 @@ deadlift_feedback_v2_CLEAN.py
   python deadlift_feedback_v2_CLEAN.py
 
 Purpose:
-    데드리프트 전용 사용자-전문가 비교 및 시각적 자세 피드백 생성.
+    사용자-전문가 비교 및 시각적 자세 피드백 생성.
     squat_feedback_v5_UPGRADE.ipynb(스쿼트용 노트북, 이 저장소에는 아직
-    없음)를 데드리프트용으로 변환한 로컬 실행 스크립트.
+    없음)를 변환한 로컬 실행 스크립트이며, 현재는 `EXERCISE = 'deadlift'`로
+    고정되어 있다.
 
 Supported exercise:
-    deadlift (단, 내부 EXERCISE_DELTA_THRESHOLDS 등은 squat/deadlift/bench
-    3종 모두의 값을 정의하고 있어, EXERCISE 변수만 바꾸면 다른 종목에도
-    쓸 수 있는 구조로 설계되어 있다. 다만 실제로 검증된 것은 deadlift뿐이다.)
+    squat, deadlift, bench 3종 모두 코드 구조상 지원한다(`EXERCISE` 변수를
+    바꾸고 `USER_VIDEO_FILES`/`EXPERT_JSON_FILES`의 해당 파일만 준비하면
+    됨). 단, 종목명 내부 키가 `benchpress`가 아니라 **`bench`**라는 점에
+    주의 — `benchpress_feedback_v4.py`/`unified_feedback_v4.py`와 다른
+    세 번째 명명 규칙이다. 실제로 팀이 검증한 것은 deadlift뿐이다.
 
 Input:
-    - USER_VIDEO_PATH: 사용자 데드리프트 영상 (기본값 user_deadlift_01.mp4)
+    - USER_VIDEO_PATH: 사용자 영상 (기본값 user_deadlift_01.mp4)
     - EXPERT_JSON_PATH: 전문가 JSON (기본값 expert_deadlift.json — 이
-      저장소에는 포함되어 있지 않다. expert_benchpress.json과 동일한
-      스키마로 별도 생성해야 한다)
-    - MODEL_PATH: pose_landmarker_lite.task (이 저장소에는 미포함)
+      저장소에는 포함되어 있지 않다. **주의**: `expert_benchpress.json`과
+      스키마가 완전히 같지 않다 — 아래 Notes 참고)
+    - MODEL_PATH: pose_landmarker_lite.task (이 저장소에는 미포함,
+      ../../../requirements.txt 안내 참고)
+    - 같은 폴더의 realtime_compare_side.py, feedback_overlay.py (이번에 추가됨)
 
 Output:
     output/deadlift_v1_feedback_CLEAN.mp4
@@ -38,25 +43,31 @@ Output:
 Main dependencies:
     opencv-python(cv2), mediapipe, numpy, Pillow(PIL), matplotlib(pip 설치
     안내에만 등장, 이 파일 내부에서 직접 import되지는 않음)
-    그리고 반드시 로컬 모듈 realtime_compare_side.py(as rt), feedback_overlay.py
-    (as fo)가 이 스크립트와 같은 폴더에 있어야 한다(Cell 4의 import 참고).
+    그리고 로컬 모듈 realtime_compare_side.py(as rt), feedback_overlay.py
+    (as fo) — 이번에 함께 추가되어 이제 이 폴더 안에 존재한다.
 
 Notes:
-    - **이 저장소에는 realtime_compare_side.py, feedback_overlay.py가 아직
-      없다.** 두 모듈이 없으면 이 스크립트는 import 단계에서 즉시 실패한다.
-      2학기(또는 팀 확인) 시 반드시 추가해야 실행 가능하다.
-    - 측면 영상 전용, 전문가 JSON 필수(자동 전처리 로직은 이 파일이 아니라
-      import되는 rt 모듈에 있을 가능성이 있으나, rt 모듈 자체가 없어 확인 불가.
+    - **여전히 실행을 막는 문제(중요)**: `rt.load_expert()`
+      (realtime_compare_side.py)는 전문가 JSON에 `total_frames` 키가
+      있어야 한다고 가정한다. 그런데 `unified_feedback_v4.py`가 생성하는
+      전문가 JSON(`expert_benchpress.json` 등, `version/fps/source_video/
+      frames` 구조)에는 `total_frames`가 없다. 즉 unified 스크립트로 만든
+      JSON을 그대로 여기 재사용할 수 없다 — `expert_deadlift.json`을
+      준비할 때 `total_frames` 키를 직접 추가하거나(`len(frames)`),
+      `rt.load_expert()`를 수정해야 한다. 자세한 내용은
+      ../../../docs/system_pipeline.md 참고.
+    - 측면 영상 전용.
     - Colab 전용 코드(Google Drive mount, !pip install 등)는 원 노트북에서
       이미 제거된 상태로 확인됨(주석에 명시).
     - FONT_PATH가 1차로 Windows 경로("C:/Windows/Fonts/malgun.ttf")로
       하드코딩되어 있으나, Cell 7의 find_korean_font()가 Linux/Nanum,
       NotoSansCJK 등 대체 경로를 탐색하도록 되어 있어 benchpress_feedback_v4.py
       보다 크로스플랫폼 대응이 더 되어 있다.
-    - threshold 값이 unified_feedback_v4.py, benchpress_feedback_v4.py와
+    - threshold 값이 unified_feedback_v4.py, benchpress_feedback_v4.py,
+      그리고 realtime_compare_side.py(squat/pushup용 별도 THRESHOLDS)와도
       서로 다르다. 자세한 비교는 ../../../docs/thresholds.md 참고.
     - 팀이 "완전한 코드가 아니다"라고 밝혔으며, 이 저장소에서 직접 실행
-      검증은 하지 못했다(의존 모듈 부재로 애초에 실행 불가능한 상태).
+      검증은 하지 못했다(모델 파일·원본 영상·total_frames 이슈로 실행 불가).
 """
 
 # %% [converted from squat_feedback_v5_UPGRADE.ipynb]
