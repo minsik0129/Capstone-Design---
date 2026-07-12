@@ -1,49 +1,60 @@
 # 전체 시스템 파이프라인 (System Pipeline)
 
-> **이 문서는 GitHub 저장소의 실제 코드를 읽고 검증한 것이 아니라, Notion에 기록된 코드 실행 방식·파일명·회의록 설명을 근거로 재구성한 것입니다.** 저장소에 코드가 커밋되면 이 문서를 실제 코드 기준으로 다시 검토·수정해야 합니다.
+> **개정 이력**: 최초 버전은 저장소에 코드가 없어 Notion 기록만으로 추정 작성했습니다. 이후 팀이 실제 코드 3종(`src/posture_feedback/{benchpress,deadlift,unified}/`)을 제공해, 이번 버전은 그 코드를 직접 읽고 검증한 내용으로 갱신했습니다. **`squat` 전용 스크립트와 `deadlift_feedback_v2_CLEAN.py`가 의존하는 `realtime_compare_side.py`/`feedback_overlay.py`는 여전히 이 저장소에 없습니다** — 아래 내용 중 이 두 파일에 의존하는 부분은 코드로 검증하지 못했습니다.
 
-## 1. 개념적 파이프라인
+## 1. 실행 가능한 두 갈래 구조
 
-과제에서 제시한 11단계 파이프라인과, Notion 기록으로 확인 가능한 실제 구현 상태를 대응시키면 다음과 같습니다.
+코드를 확인한 결과, "하나의 통일된 파이프라인"이 아니라 **서로 다르게 구현된 두 갈래**가 존재합니다.
 
-| 단계 | 설명 | 확인된 상태 |
+### 갈래 A — `unified_feedback_v4.py` (자기완결형, 3종목 지원)
+
+외부 모듈 없이 단독으로 squat/deadlift/benchpress 3종목을 모두 처리합니다. `--exercise squat|deadlift|benchpress|bench|sq|dl|bp`, `--all` CLI를 지원합니다(`normalize_exercise_name()`으로 별칭 처리 — 과제에서 언급한 `bench` alias가 **실제로 존재함을 코드로 확인**했습니다).
+
+### 갈래 B — 종목별 단독 스크립트 (`benchpress_feedback_v4.py`, `deadlift_feedback_v2_CLEAN.py`)
+
+각 운동마다 별도 파일로 작성되어 있고, 서로 다른 threshold·계산식을 씁니다([`thresholds.md`](./thresholds.md), [`exercise_metrics.md`](./exercise_metrics.md) 참고). `deadlift_feedback_v2_CLEAN.py`는 자체 로직 없이 `realtime_compare_side.py`(as `rt`), `feedback_overlay.py`(as `fo`)를 import해서 동작하도록 되어 있는데, **이 두 파일이 저장소에 없어 현재 상태로는 실행할 수 없습니다.**
+
+두 갈래는 통합되지 않은 상태이며, 이것이 2학기 P0 과제 중 하나입니다([`second_semester_plan.md`](./second_semester_plan.md)).
+
+## 2. 갈래 A(`unified_feedback_v4.py`) 실제 처리 흐름
+
+과제에서 제시한 11단계와 대응시키면 다음과 같습니다. 함수명은 모두 `src/posture_feedback/unified/unified_feedback_v4.py` 기준입니다.
+
+| 단계 | 설명 | 실제 구현 |
 |---|---|---|
-| 1 | 사용자/전문가 운동 영상 입력 | 확인됨 — `unified_feedback_v4.py --exercise {squat,deadlift,benchpress}` CLI로 실행 (0602) |
-| 2 | MediaPipe pose landmark 추출 | 확인됨 — MediaPipe Pose 33 landmark 사용 (모션인식 study - kim) |
-| 3 | landmark 좌표·visibility를 CSV/JSON/내부 자료구조로 저장 | **부분 확인** — 원본 landmark 저장 스키마는 문서에 명시되지 않음. 가공된 각도 CSV(`exercise_angles.csv`)는 별도 실험 트랙에서만 확인됨 (자세한 내용: [`pose_landmarks_and_csv.md`](./pose_landmarks_and_csv.md)) |
-| 4 | 전문가 영상 기준 자세 지표 계산 | 확인됨 — "기준지표"/"공통지표" 문서에 계산식 존재 |
-| 5 | 사용자 영상에서 동일 지표 계산 | 확인됨 — 동일 로직 재사용 구조로 기술됨 |
-| 6 | 여러 프레임 smoothing/window average | **부분 확인** — window 크기 실험(96→32, 0514)은 phase 분류 모델의 시퀀스 길이 관련이며, 지표 자체의 프레임 간 smoothing 기법이 별도로 명시되어 있지는 않음 |
-| 7 | 운동 종목별 rule 적용 → 자세 오류 판단 | 확인됨 — threshold 기반 rule ([`thresholds.md`](./thresholds.md)) |
-| 8 | rule 위반 시 해당 피드백 우선 출력 | **명시적 기록 없음** — "우선순위" 로직이 문서화되어 있지는 않음(언급 없음) |
-| 9 | rule 위반이 불명확할 때 전문가와 차이 비교 | **명시적 기록 없음** (언급 없음) — 다만 "시각" 문서의 `metricbar`(전문가 vs 사용자 비교 바)가 유사한 목적으로 보임 |
-| 10 | HUD·기준선·관절 표시·메시지로 결과 시각화 | 확인됨 — 오버레이 13종 구현 ([`experiments_and_results.md`](./experiments_and_results.md) 6절) |
-| 11 | 결과 영상 저장 | **명시적 기록 없음** — 저장 파일명 규칙 등은 확인되지 않음 |
+| 1 | 영상 입력 | `process_exercise()`가 `VIDEO_CONFIG[exercise]`의 사용자/전문가 영상 경로를 읽음. `open_video_normalized()`가 `ffprobe`로 회전 메타데이터를 확인해 세로 영상을 보정 |
+| 2 | pose landmark 추출 | `create_landmarker()` (MediaPipe Tasks `PoseLandmarker`, `num_poses=2`) → `extract_all_landmarks()`. 여러 명이 잡히면 `PersonSelector`가 운동 주체를 선택(벤치는 척추 수평 여부, 그 외는 크기+직전 프레임과의 근접성 기준) |
+| 3 | landmark 저장 | `LandmarkSmoother`(EMA)로 스무딩 → 전문가 영상은 `frame_idx/timestamp_ms/side/landmarks/metrics` 구조의 JSON으로 저장(`save_expert_profile`). 스키마 상세는 [`pose_landmarks_and_csv.md`](./pose_landmarks_and_csv.md) |
+| 4 | 전문가 기준 지표 계산 | `build_expert_profile()`이 JSON이 없으면 전문가 영상을 전처리해 `compute_metrics()`로 지표를 계산하고 캐시 저장. JSON이 있으면 그대로 로드(재계산 없음) |
+| 5 | 사용자 지표 계산 | 동일한 `compute_metrics()`를 사용자 프레임에도 적용 |
+| 6 | smoothing | landmark 좌표 자체는 `LandmarkSmoother`(EMA, alpha 0.35/0.30)로 안정화됨. 지표 값 자체에 대한 별도 window-average는 확인되지 않음 |
+| 7 | rule 적용 → 오류 판단 | `choose_issue()`: ①`DELTA_THRESHOLDS` 기반 전문가-사용자 차이 판정(단, `ADVISORY_METRICS`는 제외) ②`ABSOLUTE_RULES` 기반 phase별 절대 기준 판정. 두 종류의 `Issue` 후보를 모아 `severity`(threshold 대비 초과 비율) 최댓값 하나만 채택 |
+| 8 | rule 위반 우선 출력 | `FeedbackStabilizer`가 동일 `issue.key`가 `min_frames=3`회 이상 연속되어야 화면에 반영하고, 사라진 뒤에도 `hold_frames=9`프레임 동안 유지(깜빡임 방지). **여러 rule이 동시에 위반되면 `severity`가 가장 큰 것 하나만 표시**하는 방식으로 "우선순위"가 구현되어 있음 |
+| 9 | 전문가와 차이 비교(rule 불명확 시) | 별도의 "불명확할 때만" 분기는 없고, **모든 프레임에서 항상 델타 비교(7번)와 절대 기준 판정을 함께 수행**한 뒤 severity로 우선순위를 매기는 단일 로직으로 처리됨. 과제가 상정한 "1차 rule, 2차 비교"라는 2단계 순차 구조와는 다름 |
+| 10 | 시각화 | `draw_skeleton`, `draw_angle_arc`(관절 중심 true arc), `draw_trunk_corridor`, `draw_bar_proxy_layer`, `draw_wrist_elbow_guide`, `draw_hud` 등. USER + EXPERT skeleton + HUD 3분할 레이아웃 |
+| 11 | 결과 저장 | `cv2.VideoWriter`로 `output/{exercise}_unified_feedback_v4.mp4` 저장 |
 
-**8, 9, 11번 단계는 이번 조사에서 명시적 근거를 찾지 못했습니다.** 실제 코드 로직이 이 단계들을 어떻게 처리하는지는 코드가 저장소에 없어 확인할 수 없었습니다. 실제 코드와 다를 경우, 코드를 기준으로 이 문서를 다시 수정해야 합니다.
+## 3. 실제 코드 파일 (저장소 반영 완료)
 
-## 2. 실제로 존재가 확인된 코드/도구 (Notion 언급 기준, 저장소에는 없음)
+| 파일 | 위치 | 종목 | 비고 |
+|---|---|---|---|
+| `unified_feedback_v4.py` | `src/posture_feedback/unified/` | squat, deadlift, benchpress | 자기완결형. 내부 `version` 문자열은 `"unified_feedback_v2"`로 되어 있어 파일명과 불일치(팀 확인 필요) |
+| `benchpress_feedback_v4.py` | `src/posture_feedback/benchpress/` | benchpress | 단독 실행. `expert_benchpress.json` 필수(자동 생성 안 함) |
+| `expert_benchpress.json` | `src/posture_feedback/benchpress/` | benchpress | 215프레임 실제 전처리 결과 샘플. `benchpress_feedback_v4.py`와 `unified_feedback_v4.py` 양쪽이 참조 가능한 스키마 |
+| `deadlift_feedback_v2_CLEAN.py` | `src/posture_feedback/deadlift/` | deadlift | **`realtime_compare_side.py`, `feedback_overlay.py` 없이는 실행 불가** |
 
-| 파일명 | 역할(추정) | 최초 언급 시점 |
+## 4. 아직 저장소에 없는 파일 (2학기/추가 확인 필요)
+
+| 파일 | 필요한 이유 | 확인 방법 |
 |---|---|---|
-| `ST_GCN_custom_dataset.ipynb` | 종목분류 ST-GCN 학습 | 0428 |
-| `expert_preprocess_sideview.py` | 전문가 영상 측면 지표 전처리 | 0428 |
-| `realtime_compare_sideview.py` | 실시간 사용자-전문가 비교 | 0428 |
-| `phase_labeling.py` | phase 라벨링 도구 (로컬 실행 전용, "코랩 아님"으로 명시) | 0512 |
-| `feedback_overlay.py` | 시각 피드백 오버레이 | 0519 |
-| `realtime_compare_side.py` | 실시간 비교/오버레이 | 0519 |
-| `squat_feedback_v3.ipynb` ~ `squat_feedback_v5.ipynb` | 스쿼트 피드백 코드 단계적 업그레이드 | 0526 |
-| `unified_feedback_v4.py` | 3종목 통합 CLI | 0602 |
-| `pose_landmarker_lite.task` | MediaPipe 모델 파일 (실행 필수) | 0602 |
+| `realtime_compare_side.py`, `feedback_overlay.py` | `deadlift_feedback_v2_CLEAN.py`가 import해서 사용 | 팀이 보유 중이면 추가 제공 필요 |
+| squat 전용 스크립트(`squat_feedback_v5_UPGRADE` 계열) | `deadlift_feedback_v2_CLEAN.py`의 docstring에 "squat_feedback_v5_UPGRADE.ipynb를 변환했다"고 명시되어 있어 원본이 존재하는 것으로 보이나 미제공 | 팀이 보유 중이면 추가 제공 필요 |
+| `pose_landmarker_lite.task` | 세 코드 모두 실행에 필수인 MediaPipe 모델 파일 | [`requirements.txt`](../requirements.txt) 안내에 따라 별도 다운로드 |
+| 원본 영상 파일(`user_*.mp4`, `expert_*.mp4`) | 실행에 필요하나 개인정보 이슈로 저장소에 커밋하지 않음 | [`data/README.md`](../data/README.md) 참고 |
+| 종목 인식(ST-GCN/TCN/CTR-GCN) 학습 코드, phase 분류 코드, RepCounter 코드 | Notion 회의록에 다수 언급되었으나 실제 파일은 아직 미제공 | [`experiments_and_results.md`](./experiments_and_results.md) 참고 |
 
-과제에서 예시로 언급한 `squat_feedback_v5_UPGRADE.py`, `multi_exercise_feedback_v1.py`, `unified_feedback_v2.py`라는 정확한 파일명은 확인되지 않았습니다. 가장 근접한 실제 파일명은 `squat_feedback_v5.ipynb`(0526)와 `unified_feedback_v4.py`(0602)입니다 — 버전 번호와 확장자가 과제 지시문과 다르므로, 실제 코드를 확보한 뒤 정확한 파일명으로 이 문서를 갱신해야 합니다.
+## 5. Colab / 로컬 실행 구분
 
-## 3. 왜 코드 구조(src/) 대신 이 문서만 존재하는가
+세 파일 모두 **로컬(VS Code) 실행 전용**으로 작성되어 있습니다. `deadlift_feedback_v2_CLEAN.py`의 상단 주석에 Colab 전용 코드(Google Drive mount, `!pip install`, `!apt-get install fonts-nanum`)를 명시적으로 제거했다고 기록되어 있습니다. 세 파일 모두 코드 내부에 `pip install`/`apt install`/`wget` 등 자동 설치 구문은 없습니다(설치 안내는 docstring 주석에만 있음).
 
-과제 지시문은 저장소에 이미 존재하는 코드를 `src/preprocessing/`, `src/action_recognition/` 등으로 재배치하는 것을 전제로 합니다. 그러나 이 저장소는 README 2줄짜리 초기 커밋만 있는 빈 저장소였습니다([`../README.md`](../README.md)의 "저장소 현황" 절 참고). 따라서 이번 작업에서는:
-
-- 존재하지 않는 코드를 새로 작성하지 않았습니다 (Notion 회의록에 언급된 알고리즘을 재구현하는 것은 "구현하지 않은 기능을 구현 완료로 표현하지 말 것"이라는 원칙에 위배되며, 팀이 실제로 작성한 코드와 다를 위험이 큽니다).
-- 대신 Notion에 기록된 파이프라인/파일명/실험 결과를 문서로 보존했습니다.
-- `src/`, `notebooks/`, `configs/` 디렉터리는 2학기에 실제 코드가 들어올 자리로 뼈대만 마련해 두었습니다(각 디렉터리의 `README.md` 참고).
-
-관련 문서: [`../README.md`](../README.md), [`second_semester_plan.md`](./second_semester_plan.md)
+관련 문서: [`../README.md`](../README.md), [`exercise_metrics.md`](./exercise_metrics.md), [`thresholds.md`](./thresholds.md), [`pose_landmarks_and_csv.md`](./pose_landmarks_and_csv.md), [`second_semester_plan.md`](./second_semester_plan.md)
