@@ -1,0 +1,63 @@
+# 현재 한계 (Limitations)
+
+이 문서는 1학기 동안 Notion에 명시적으로 기록된 문제점만 정리합니다. 추측성 한계는 포함하지 않았습니다.
+
+## 1. MediaPipe 인식 문제
+
+- **바벨/원판의 관절 가림**: 벤치프레스·데드리프트에서 바벨과 원판이 손목·손·팔꿈치·정강이를 가리는 문제가 반복적으로 지적됨 (0430, 0602, "기준지표")
+- **원판에 의한 다리 가림**: 데드리프트에서 원판이 다리를 가리는 문제 (0602)
+- **정측면 촬영의 근본적 한계**: 정측면에서는 원판이 바를 가려 검출이 아예 불가능해 45도 다각도뷰가 필요하다는 결론에 도달 ("기준지표")
+- **MediaPipe가 시계열(비디오 시퀀스)을 보지 않는다는 지적**: 0618 회의록에서 교수진이 "MediaPipe가 시퀀스를 안 본다", "시계열 처리 가능한 모델을 찾아보라"고 지적했고, 팀 결론은 "mediapipe말고 다른 모델을 찾아봐야겠다" — **미착수, 향후 과제로 남음**
+
+과제 지시문에서 언급된 "손목 landmark 흔들림", "발/발목 오인식", "skeleton이 프레임마다 흔들리는 문제"에 대한 구체적 수치나 사례는 이번 조사에서 별도로 확인되지 않았습니다(간접적으로 `foot_flatness` threshold 0.04 설정 근거에서 "MediaPipe의 발끝·뒤꿈치 랜드마크는 흔들림이 크다"는 서술로 시사되는 정도입니다).
+
+## 2. 바벨 검출 문제
+
+MediaPipe Pose는 바벨을 직접 검출하지 못합니다. 현재 코드는 손목/손 landmark를 바벨 위치의 **proxy(근사값)** 로 사용합니다. 다음 지표들은 정확한 바벨 검출 없이는 구현이 어렵습니다.
+
+- 바벨과 어깨 사이의 실제 거리
+- 바벨과 정강이 사이의 실제 거리
+- 어깨와 바벨의 수직선 관계
+- 정확한 bar path(이동 궤적)
+- 원판의 위치와 이동 궤적
+
+YOLO-World를 이용한 바벨 검출은 **실험까지 완료**되었으나(0611 "yolo 모델 검출"), Ablation 결과 6개 입력 조합 중 **최하위 성능**(Phase F1 0.506, Action F1 0.692, Count MAE 4.619)을 보여 현재 채택되지 않았습니다. 즉 "구현되지 않은 기능"이 아니라 "실험했으나 성능 미달로 미채택된 기능"이며, 향후 재검토 후보입니다.
+
+**코드 수준의 완화책(실제 확인됨)**: `unified_feedback_v4.py`는 바벨 미검출 문제를 정면 돌파하는 대신, 데드리프트의 손목·팔꿈치처럼 구조적으로 가려지는 관절에 의존하는 지표(`elbow_angle`, `wrist_elbow_x_diff`, `bar_proxy_conf`)를 `STRUCTURAL_OCCLUSION`/`ADVISORY_METRICS`로 지정해 **오류 판정에서 제외하고 참고용으로만 표시**하는 방식으로 우회합니다. 근본 해결책은 아니지만, 신뢰할 수 없는 지표로 오탐을 만들지 않기 위한 실질적 안전장치입니다. 자세한 내용은 [`exercise_metrics.md`](./exercise_metrics.md) 5-3절 참고.
+
+## 3. 시각화 문제
+
+과제 지시문에서 언급된 "모든 관절에 각도기처럼 arc를 표시", "운동별로 동일 overlay 적용", "HUD 과다 정보" 문제에 대한 명시적 기록은 이번 Notion 조사에서 확인되지 않았습니다. 오히려 "시각" 문서에는 13종의 세분화된 오버레이(스켈레톤 히트맵, ROM 게이지, 점수 바, 정렬 경고선, 각도 arc, 깊이 기준선, 비교 바, phase 색상 블록, 좌우 비대칭, 템포 파형, ACL 위험도, 궤적 트레일)가 목적별로 구분되어 설계된 것으로 기록되어 있어(구현 완료), 지시문이 우려하는 "각도기처럼 복잡한 화면" 문제는 팀이 이미 세분화 설계로 어느 정도 대응한 것으로 보입니다.
+
+다만 다음은 확인됩니다.
+
+- **전문가-사용자 비교의 크기/방향/비율 불일치 문제**: `unified_feedback_v4.py`의 `ExpertPaneNormalizer`가 bbox 정규화(크기)와 화면 중앙 배치는 3종목 모두 구현하고 있으나, 방향(회전) 정렬은 벤치프레스만 구현되어 있습니다([`capture_guidelines.md`](./capture_guidelines.md) 3절, [`pose_landmarks_and_csv.md`](./pose_landmarks_and_csv.md) 4절 참고). 스쿼트·데드리프트는 코드 주석상 "의도적으로 끈 것"이라 완전한 미해결 문제는 아니지만, 촬영 각도가 크게 다른 사용자-전문가 쌍에서는 여전히 비교가 부정확해질 수 있습니다.
+
+## 4. 횟수 카운팅 문제
+
+- Binary mask 기반 v1 모델은 라벨의 99.8%가 "rep 중"으로 표시되어 학습 신호가 사실상 없었고, 1670프레임이 1rep으로 오인식되는 등 사실상 실패 (0505)
+- YOLOv8-pose+TCN 별도 트랙에서도 실제 횟수와 예측 횟수 불일치 사례 확인(squat01: 실제 1회를 2회로 감지, MAE=0.5) — 과제 지시문이 예시로 든 "스쿼트 3회를 2회로 계산"과 유사한 유형의 오류
+- Gaussian density v2, CTR-GCN count head, 실시간 valley 기반 카운팅으로 순차 개선되었으나(Count MAE가 3.07→1.69로 개선, [`experiments_and_results.md`](./experiments_and_results.md) 참고), **MAE가 여전히 1을 넘는 경우가 있어 완전히 해결된 문제는 아님**
+- phase 구분이 불명확한 영상(특히 deadlift up phase, F1 0.336)에서 횟수 오류가 증가하는 경향이 phase 성능 저하 분석에서 확인됨 (0602)
+- 데이터셋 라벨 품질(라벨링 재작업이 0611에 진행됨)과 영상 품질의 영향을 크게 받는 것으로 판단됨
+
+## 5. 데이터셋 관련 한계
+
+- **deadlift 데이터 부족**: 3종목 중 지속적으로 가장 적은 수(25~26개)로 반복 지적됨 (0428, 0505, 0602). 성능 지표(F1, Count MAE)도 3종목 중 가장 낮은 경우가 많음
+- **다인물 영상에서 잘못된 사람 추적** 문제 (0505) — `unified_feedback_v4.py`의 `PersonSelector` 클래스가 이에 대한 실제 대응책으로 확인됩니다: 벤치프레스는 척추 수평 여부(누운 사람 우선), 그 외 종목은 화면상 크기(카메라에 가까운 사람 우선)와 직전 프레임 위치와의 근접성을 조합해 점수화하고, 최고점 후보를 운동 주체로 선택합니다. 다만 실제 다인물 영상으로 검증하지는 못했습니다.
+- **종목명/파일명 표기 불일치**: `bechpress`, `beachpress`, `sqaut` 등 오타, `benchpress_lables.csv`(labels 오타) 등 파일명 규칙 불일치 (0428, 0512)
+- 자세한 내용은 [`dataset.md`](./dataset.md), [`dataset_history.md`](./dataset_history.md) 참고
+
+## 6. Threshold의 일반화 문제
+
+threshold 값들은 IPF 규정집·논문의 **정성적** 서술을 팀이 해석해 정한 것이며, 실제 전문가 영상 분포를 통계적으로 측정해 산출한 값이 아닙니다. 0430, 0514 회의록에서 팀 스스로 "threshold 근거 부족"을 인정했습니다. 자세한 내용은 [`thresholds.md`](./thresholds.md)를 참고하십시오.
+
+## 7. 저장소/코드 관리 상 한계
+
+- **최초 문서화 시점(2026-07-12 이전)에는 GitHub 저장소(`Capstone-Design---`)에 실제 소스 코드, 데이터, 결과 영상이 전혀 커밋되어 있지 않았습니다.** 이후 팀이 자세 피드백 코드 6종(benchpress/deadlift/unified 3개 + deadlift 의존 모듈 2개 + phase 라벨링 도구 1개)을 순차적으로 제공해 `src/`에 반영했습니다.
+- **여전히 저장소에 없는 것**: 스쿼트 전용 스크립트, ST-GCN/TCN/CTR-GCN 학습 코드(다른 팀원 담당이라 아직 미보유 — 팀 확인), `pose_landmarker_lite.task` 모델 파일(제공받았으나 대용량 바이너리 커밋 지양 원칙에 따라 저장소에는 커밋하지 않음, 공식 다운로드 URL만 문서화), 원본 영상/데이터셋. 자세한 목록은 [`system_pipeline.md`](./system_pipeline.md) 6절 참고.
+- **새로 발견된 실행 차단 문제**: `deadlift_feedback_v2_CLEAN.py`의 import 오류는 해결되었으나, 의존 모듈 `realtime_compare_side.py`의 `load_expert()`가 전문가 JSON에 `total_frames` 필드를 요구하는 반면 `unified_feedback_v4.py`가 생성하는 JSON에는 이 필드가 없어 **여전히 실행되지 않습니다**([`system_pipeline.md`](./system_pipeline.md) 2절).
+- 반영된 파일들도 팀이 "완전한 코드가 아니다"라고 명시했고, 모델 파일·원본 영상이 없어 **실제 실행 검증은 하지 못했습니다**(구문 오류 여부만 `ast.parse`로 확인).
+- 코드 파일 간 threshold·계산식·smoothing 알고리즘·정규화 기준·종목명 표기(`benchpress` vs `bench`) 불일치가 파일 수가 늘어나면서 더 많이 확인되었습니다([`thresholds.md`](./thresholds.md), [`exercise_metrics.md`](./exercise_metrics.md) 5절). 이를 하나로 통일하는 것이 2학기 P0 과제입니다 — [`second_semester_plan.md`](./second_semester_plan.md) 참고.
+
+관련 문서: [`experiments_and_results.md`](./experiments_and_results.md), [`second_semester_plan.md`](./second_semester_plan.md)

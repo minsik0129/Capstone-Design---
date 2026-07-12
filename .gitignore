@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# 원본 영상 / 대용량 데이터 (개인정보 포함 가능성으로 인해 저장소에 커밋 금지)
+data/raw/
+data/**/*.mp4
+data/**/*.mov
+data/**/*.avi
+!data/samples/**
+
+# 모델 체크포인트 / 대용량 가중치 파일
+*.pt
+*.pth
+*.onnx
+*.task
+checkpoints/
+weights/
+
+# 결과 영상 (샘플 외 원본 출력)
+assets/results/**/*.mp4
+!assets/results/**/*.gif
+
+# 환경 변수 / 민감정보
+.env
+.env.*
+*.key
+credentials.json
+
+# OS / 에디터
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

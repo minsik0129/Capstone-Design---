@@ -1,0 +1,46 @@
+# requirements.txt
+#
+# src/posture_feedback/, src/preprocessing/ 전체 파일의 실제 import 문을
+# 확인해서 정리했습니다(자세 피드백/비교/라벨링 코드 기준). ST-GCN/TCN/CTR-GCN
+# 학습 코드는 아직 저장소에 없어 그쪽 의존성은 미확인입니다.
+# 버전은 확인할 방법이 없어 임의로 엄격하게 고정하지 않았고, 코드 주석에 있는
+# 제약(numpy<2)만 반영했습니다.
+
+# --- 실제 코드 import로 확인됨 (src/) ---
+mediapipe          # PoseLandmarker (33 keypoints), pose_landmarker_lite.task 모델 필요
+opencv-python       # cv2 — 영상 입출력, 오버레이 렌더링
+numpy<2             # unified_feedback_v4.py 상단 주석에 "numpy<2" 명시
+Pillow              # PIL — 한글 텍스트 오버레이 렌더링(ImageFont/ImageDraw)
+# tkinter은 표준 라이브러리이지만 일부 Linux 배포판/최소 설치 Python에는
+# 기본 포함되지 않을 수 있음(phase_labeling.py가 필요, 예: Ubuntu는
+# `apt install python3-tk` 별도 필요)
+
+# --- 선택 (없어도 규칙 기반 fallback으로 동작) ---
+anthropic           # realtime_compare_side.py의 LLM 피드백 기능. ANTHROPIC_API_KEY가
+                    # None이면(현재 저장소 기본값) 이 라이브러리 없이도 동작함
+
+# --- Notion 회의록/기술 문서에서 명시적으로 언급됨 (별도 실험 트랙, 이 저장소에 코드 없음) ---
+pandas             # CSV(exercise_angles.csv 등) 처리 — YOLOv8-pose+TCN 실험 트랙
+scipy              # find_peaks, Savitzky-Golay filter 기반 횟수 카운팅 실험
+ultralytics         # YOLOv8n-pose / YOLO-World 실험 (채택되지는 않았으나 실험 코드에 사용됨)
+
+# --- 매우 높은 확률로 필요하지만, 아직 코드로 확인되지 않음 ---
+# (ST-GCN/TCN/CTR-GCN 학습, epoch/파라미터 수 기록 등 딥러닝 실험이 Notion에서
+#  확인되므로 필요할 것으로 추정되나, 해당 학습 코드가 저장소에 없어 미확인)
+# torch
+# matplotlib          # confusion matrix, epoch-loss graph 시각화에 사용되었을 것으로 추정
+
+# --- 외부 바이너리(선택, pip 설치 대상 아님) ---
+# ffmpeg/ffprobe: unified_feedback_v4.py의 get_video_rotation()이 세로 촬영
+# 영상의 회전 메타데이터를 읽는 데 사용. 없으면 조용히 회전 보정을 건너뛴다
+# (오류 없이 동작은 함). 시스템 패키지 매니저로 별도 설치 필요.
+
+# --- 참고 ---
+# Python 권장 버전: 코드/Notion 어디에도 명시되어 있지 않음. MediaPipe/numpy<2
+# 제약과의 호환성을 고려해 3.9~3.11 범위를 우선 검토할 것을 권장.
+# GPU 필요 여부: 이 저장소의 자세 피드백/비교 코드는 추론(inference)만
+# 수행하며 GPU를 직접 요구하는 코드는 없음(CPU로 동작 가능할 것으로 추정,
+# 단 실측 속도 검증은 못함). ST-GCN/CTR-GCN 학습은 GPU 자원 부족으로 실험이
+# 중단된 기록이 있어(0512) 학습 단계에서는 GPU가 사실상 필요한 것으로 보임.
+# pose_landmarker_lite.task: 공식 다운로드 URL(코드에서 확인됨) —
+# https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task
